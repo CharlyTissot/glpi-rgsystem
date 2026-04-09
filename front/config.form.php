@@ -19,6 +19,7 @@ if (isset($_POST['save'])) {
 
     // Créer ou mettre à jour la tâche cron avec la fréquence configurée
     if (isset($_POST['cron_frequency'])) {
+        global $DB;
         $freqMinutes = max(1, (int)$_POST['cron_frequency']);
         $freqSeconds = $freqMinutes * 60;
         PluginRgsupervisionConfig::set('cron_frequency', (string)$freqMinutes);
@@ -27,22 +28,31 @@ if (isset($_POST['save'])) {
         $cron->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
 
         if ($cron->getID()) {
-            // Mettre à jour la fréquence si la tâche existe déjà
-            $cron->update([
-                'id'        => $cron->getID(),
+            // Mettre à jour directement en BDD (update() de CronTask peut être bloqué)
+            $DB->update('glpi_crontasks', [
                 'frequency' => $freqSeconds,
+                'state'     => 1,   // 1 = actif
+                'mode'      => 2,   // 2 = externe
+            ], [
+                'id' => $cron->getID(),
             ]);
         } else {
             // Créer la tâche si elle n'existe pas encore
-            CronTask::register(
-                'PluginRgsupervisionSync',
-                'cronSyncRGAlerts',
-                $freqSeconds,
-                [
-                    'comment' => 'Synchronisation RG Supervision vers GLPI',
-                    'mode'    => CronTask::MODE_EXTERNAL,
-                ]
-            );
+            $DB->insert('glpi_crontasks', [
+                'itemtype'      => 'PluginRgsupervisionSync',
+                'name'          => 'cronSyncRGAlerts',
+                'frequency'     => $freqSeconds,
+                'param'         => null,
+                'state'         => 1,
+                'mode'          => 2,
+                'allowmode'     => 3,
+                'hourmin'       => 0,
+                'hourmax'       => 24,
+                'logs_lifetime' => 30,
+                'lastrun'       => null,
+                'lastcode'      => null,
+                'comment'       => 'Synchronisation RG Supervision vers GLPI',
+            ]);
         }
     }
 
