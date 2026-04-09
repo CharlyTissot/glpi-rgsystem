@@ -67,23 +67,42 @@ foreach ($rows2 as $r) {
 // ── Synchronisation ──
 echo '<tr class="headerRow"><th colspan="2">⏱️ Synchronisation</th></tr>';
 $cronFreq = (int)($cfg['cron_frequency'] ?? 10);
-$cronStatus = '';
-$cronTask = new CronTask();
-$cronFound = $cronTask->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
-if ($cronFound && $cronTask->getID()) {
-    $freq = (int)($cronTask->fields['frequency'] ?? 0);
-    $freqMin = $freq > 0 ? round($freq / 60) : 0;
-    $lastrun = $cronTask->fields['lastrun'] ?? null;
-    $last    = $lastrun ? Html::convDateTime($lastrun) : 'Jamais';
-    $cronStatus = "<span style='color:green'>✓ Tâche active — fréquence : {$freqMin} min — dernière exécution : {$last}</span>";
+
+// Construire la ligne crontab selon la fréquence
+if ($cronFreq === 1) {
+    $cronExpr = '* * * * *';
+} elseif ($cronFreq < 60) {
+    $cronExpr = "*/{$cronFreq} * * * *";
+} elseif ($cronFreq === 60) {
+    $cronExpr = '0 * * * *';
 } else {
-    $cronStatus = "<span style='color:orange'>⚠ Tâche cron non enregistrée — enregistrer la configuration pour la créer</span>";
+    $hours = intdiv($cronFreq, 60);
+    $cronExpr = "0 */{$hours} * * *";
 }
+$cronScriptPath = dirname(__FILE__) . '/runcron.php';
+$cronLine = "{$cronExpr} /usr/local/bin/php {$cronScriptPath} >> /tmp/rgsync.log 2>&1";
+
+// Dernière exécution depuis les logs du plugin
+$lastRun = 'Jamais';
+if ($DB->tableExists('glpi_plugin_rgsupervision_logs')) {
+    $lastLog = $DB->request(['FROM' => 'glpi_plugin_rgsupervision_logs', 'ORDER' => ['date_run DESC'], 'LIMIT' => 1])->current();
+    if ($lastLog) {
+        $lastRun = Html::convDateTime($lastLog['date_run']);
+    }
+}
+
 echo "<tr class='tab_bg_1'><td><b>Fréquence (minutes)</b></td><td>";
 echo "<input type='number' name='cron_frequency' value='{$cronFreq}' min='1' max='1440' style='width:80px'>";
-echo " <small>minutes entre chaque synchronisation automatique</small>";
+echo " <small>minutes entre chaque synchronisation</small>";
 echo "</td></tr>";
-echo "<tr class='tab_bg_2'><td><b>État de la tâche cron</b></td><td>{$cronStatus}</td></tr>";
+
+echo "<tr class='tab_bg_2'><td><b>Dernière synchronisation</b></td>";
+echo "<td><span style='color:green'>{$lastRun}</span></td></tr>";
+
+echo "<tr class='tab_bg_1'><td><b>Ligne crontab à utiliser</b></td><td>";
+echo "<code style='display:block;background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:4px;font-size:12px;user-select:all'>{$cronLine}</code>";
+echo "<small style='color:#888'>Ajouter via <strong>crontab -e</strong> sur le serveur. Le log est écrit dans <code>/tmp/rgsync.log</code></small>";
+echo "</td></tr>";
 
 // ── Contrats ──
 echo '<tr class="headerRow"><th colspan="2">📋 Contrats → Catégories</th></tr>';

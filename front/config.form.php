@@ -17,35 +17,10 @@ if (isset($_POST['save'])) {
         if (is_array($rules)) PluginRgsupervisionConfig::set('contract_rules', json_encode($rules));
     }
 
-    // Créer ou mettre à jour la tâche cron avec la fréquence configurée
+    // Sauvegarder la fréquence (la ligne crontab est générée et affichée dans l'interface)
     if (isset($_POST['cron_frequency'])) {
-        global $DB;
         $freqMinutes = max(1, (int)$_POST['cron_frequency']);
-        $freqSeconds = $freqMinutes * 60;
         PluginRgsupervisionConfig::set('cron_frequency', (string)$freqMinutes);
-
-        // Supprimer l'ancienne entrée si elle existe (quelle que soit sa valeur)
-        // puis recréer proprement — évite les conflits de mise à jour GLPI
-        $DB->delete('glpi_crontasks', [
-            'itemtype' => 'PluginRgsupervisionSync',
-            'name'     => 'cronSyncRGAlerts',
-        ]);
-
-        $DB->insert('glpi_crontasks', [
-            'itemtype'      => 'PluginRgsupervisionSync',
-            'name'          => 'cronSyncRGAlerts',
-            'frequency'     => $freqSeconds,
-            'param'         => null,
-            'state'         => 1,
-            'mode'          => 2,
-            'allowmode'     => 3,
-            'hourmin'       => 0,
-            'hourmax'       => 24,
-            'logs_lifetime' => 30,
-            'lastrun'       => null,
-            'lastcode'      => null,
-            'comment'       => 'Synchronisation RG Supervision vers GLPI',
-        ]);
     }
 
     Html::redirect(Plugin::getWebDir('rgsupervision').'/front/config.php?msg=saved');
