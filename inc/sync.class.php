@@ -207,7 +207,7 @@ class PluginRgsupervisionSync extends CommonDBTM {
         if (!$nodeName) return $default;
         if ($this->entityCache === null) {
             $this->entityCache = [];
-            foreach ($DB->request(['FROM'=>'glpi_entities','WHERE'=>['is_deleted'=>0]]) as $row) {
+            foreach ($DB->request(['FROM'=>'glpi_entities']) as $row) {
                 $this->entityCache[] = $row;
             }
         }
