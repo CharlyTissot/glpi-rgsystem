@@ -11,16 +11,18 @@ GLPI plugin for automatic synchronization of **RG Supervision** alerts into GLPI
 
 ## How it works
 
-The plugin queries the RG Supervision API every 10 minutes via the GLPI cron and:
+The plugin queries the RG Supervision API via a dedicated cron script and:
 
-- Creates a GLPI ticket for each new open alert
-- Automatically assigns the client entity via the **GLPI TAG** matching the RG node
+- Creates a GLPI ticket for each new open alert, with status set to **New**
+- Automatically assigns the client entity via the **GLPI TAG** matching the RG node name
 - Determines the ticket category based on the entity's **active contracts**
 - Adds a private follow-up task if the `raiseCount` counter increases
-- Automatically resolves the ticket when the alert is closed on the RG side
-- Detects manual reopenings and closures performed by technicians in GLPI
+- Automatically resolves the ticket when the alert closes on the RG side (only if status is **New**)
+- Adds a one-time private info task if the alert closes while a technician is already working the ticket
+- Detects manual reopenings and manual closures performed by technicians in GLPI
+- Ignores alerts whose title starts with `BC`
 
-> **One-way synchronization** — RG Supervision → GLPI only.
+> **One-way synchronization** — RG Supervision → GLPI only. Closing a ticket in GLPI does **not** close the alert in RG Supervision.
 
 ---
 
@@ -29,6 +31,12 @@ The plugin queries the RG Supervision API every 10 minutes via the GLPI cron and
 - GLPI 10.x or 11.x
 - PHP 7.4+ with the `curl` extension
 - Network access to `api.rg-supervision.com` (HTTPS 443)
+
+### Required rights on the GLPI API profile
+
+```
+Administration → Profiles → [API Profile] → Assistance → Ticket categories = Read
+```
 
 ---
 
@@ -51,6 +59,12 @@ Then in GLPI:
 Setup → Plugins → RG Supervision Sync → Install → Enable
 ```
 
+### Update (without reinstalling)
+
+```sh
+unzip -o plugin_rgsupervision_v1.0.0.zip -d /var/www/glpi/plugins/
+```
+
 ---
 
 ## Configuration
@@ -63,23 +77,25 @@ Setup → Plugins → RG Supervision Sync → ⚙️ Configure
 
 ### 1. RG Supervision API
 
-| Parameter | Description |
-|-----------|-------------|
-| API Token | RG Supervision authentication token (`at_xxxx`) |
-| API URL | `https://api.rg-supervision.com` |
-| Root Node ID | ID of the root node in your RG Supervision tree |
-| HTTP Timeout | Maximum request delay in seconds (default: `30`) |
-| Agent types | `s` = Server, `w` = Workstation, `e` = Equipment |
-| Severities | Alert levels to synchronize |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| API Token | RG Supervision authentication token (`at_xxxx`) | — |
+| API URL | Base URL of the RG API | `https://api.rg-supervision.com` |
+| Root Node ID | ID of the root node in your RG Supervision tree | — |
+| HTTP Timeout (s) | Maximum request delay in seconds | `30` |
+| Agent types | `s` = Server, `w` = Workstation, `e` = Equipment | `s,w,e` |
+| Severities | Alert levels to synchronize (Critical / Medium / Low) | Critical + Medium |
 
 ### 2. GLPI Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| Request source ID | GLPI ID of the "Supervision" request source |
-| Assigned group ID | ID of the group assigned to new tickets |
-| Default entity ID | Fallback entity if no TAG matches (default: `0`) |
-| Resolved cleanup (days) | Purges resolved entries after N days (default: `30`) |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| Request source ID | GLPI ID of the "Supervision" request source | `10` |
+| Assigned group ID | ID of the group assigned to new tickets | `9` |
+| Default entity ID | Fallback entity if no TAG matches | `0` (root) |
+| Resolved cleanup (days) | Purges resolved/closed entries after N days | `30` |
+
+> To find an ID in GLPI, open the element and read `id=XX` in the browser URL.
 
 ### 3. RG Node ↔ GLPI Entity Matching
 
@@ -100,40 +116,69 @@ Administration → Entities → [Client entity] → TAG = RG_NODE_NAME
 | `CLIENT3` | `CLIENT3` |
 
 Matching is performed in this order:
-1. Exact TAG *(highest priority)*
+1. **Exact TAG** *(highest priority, case-insensitive)*
 2. Exact entity name
 3. Partial entity name
-4. Default entity
+4. Default entity (fallback)
 
-If no TAG matches, the ticket is created in the default entity. The exact RG node name is visible in the GLPI logs after the first run.
+If no TAG matches, the ticket is created in the default entity.
 
 ### 4. Contracts → Categories
 
-The plugin automatically assigns a GLPI category based on the entity's active contracts. Rules are configurable from the interface:
-
-| Contract prefix | Title keyword | Assigned category |
-|---|---|---|
-| `@BACKUP` | `beemo` | Contracts > Services > Managed Services > Managed Services Beemo |
-| `@FIREWALL` | `watchguard` | Contracts > Services > Managed Services > Managed Services Watchguard |
-| `@SMUTILISATEURPREM` | *(empty)* | Contracts > Services > Managed Services > Managed Services Premium |
-| `@SMUTILISATEURESS` | *(empty)* | Contracts > Services > Managed Services > Managed Services Essentials |
-| `@CONTRAT ZEN` | *(empty)* | Contracts > Services > SAPHIR |
-| `@CONTRAT SAPHIR` | *(empty)* | Contracts > Services > SAPHIR |
-
-If no active contract matches: default category (`Services > Out of Contract`).
+The plugin automatically assigns a GLPI category based on the entity's active contracts. Rules are fully configurable from the interface and **empty by default** on fresh install.
 
 **A contract is considered active if:**
-- Status = `Active Contract`
+- Status contains `actif` (e.g. `Contrat Actif`)
 - Directly assigned to the entity *(recursive parent contracts are excluded)*
 - Within the `begin_date` / `end_date` range
 
+**Example rules:**
+
+| Contract prefix | Title keyword | Assigned category |
+|---|---|---|
+| `BACKUP` | `beemo` | `Contracts > Services > Managed Services > Managed Services Beemo` |
+| `FIREWALL` | `watchguard` | `Contracts > Services > Managed Services > Managed Services Watchguard` |
+| `SMUTILISATEURPREM` | *(empty)* | `Contracts > Services > Managed Services > Managed Services Premium` |
+| `SMUTILISATEURESS` | *(empty)* | `Contracts > Services > Managed Services > Managed Services Essentials` |
+| `CONTRAT ZEN` | *(empty)* | `Contracts > Services > SAPHIR` |
+| `CONTRAT SAPHIR` | *(empty)* | `Contracts > Services > SAPHIR` |
+
+Rules are evaluated in order — the first match wins. If no active contract matches, the default category is used (`Services > Out of Contract`).
+
+### 5. Automatic synchronization (cron)
+
+The configuration page displays the **exact crontab line** to add on the server, automatically generated based on the configured frequency.
+
+```sh
+crontab -e
+# Paste the line shown in the interface, example:
+*/10 * * * * /usr/local/bin/php /var/www/glpi/plugins/rgsupervision/front/runcron.php >> /tmp/rgsync.log 2>&1
+```
+
+Check the cron is active:
+```sh
+crontab -l
+```
+
+Test manually:
+```sh
+/usr/local/bin/php /var/www/glpi/plugins/rgsupervision/front/runcron.php
+```
+
+View the sync log:
+```sh
+tail -f /tmp/rgsync.log
+```
+
 ---
 
-## Required rights on the GLPI API profile
+## Behavior when an RG alert closes
 
-```
-Administration → Profiles → [API Profile] → Assistance → Ticket categories = Read
-```
+| GLPI ticket status | Action |
+|---|---|
+| New (1) | ✅ Automatic resolution |
+| In progress (2), Pending (3), Unvalidated (4) | 📋 One-time private info task |
+| Resolved (5) or Closed (6) | ⏭ Nothing |
 
 ---
 
@@ -146,11 +191,12 @@ rgsupervision/
 ├── inc/
 │   ├── config.class.php       ← Read/write configuration from database
 │   ├── rgapiclient.class.php  ← cURL client for the RG Supervision API
-│   ├── sync.class.php         ← Synchronization logic + cron entry point
+│   ├── sync.class.php         ← Synchronization logic
 │   └── syncstate.class.php    ← Sync state management in database
 └── front/
     ├── config.php             ← Configuration page
-    └── config.form.php        ← Form processing
+    ├── config.form.php        ← Form processing
+    └── runcron.php            ← Dedicated CLI cron entry point
 ```
 
 ### Database tables created on installation
@@ -158,8 +204,21 @@ rgsupervision/
 | Table | Description |
 |-------|-------------|
 | `glpi_plugin_rgsupervision_configs` | Key/value configuration |
-| `glpi_plugin_rgsupervision_syncs` | Synchronization state (replaces the JSON file) |
-| `glpi_plugin_rgsupervision_logs` | Run history |
+| `glpi_plugin_rgsupervision_syncs` | Synchronization state |
+| `glpi_plugin_rgsupervision_logs` | Run history (visible in the interface) |
+
+---
+
+## GLPI 10+ constraints and solutions applied
+
+| Issue | Solution |
+|-------|----------|
+| `$DB->query()` not allowed | `$DB->doQuery()` for DDL, `$DB->insert()` / `$DB->request()` for data |
+| `Plugin::registerClass()` deprecated | Removed — GLPI 10+ handles autoloading of `inc/*.class.php` automatically |
+| Assigning a group forces status to "In progress" | `$DB->update()` directly on `glpi_tickets` after creation to force "New" |
+| `glpi_entities` has no `is_deleted` column | Filter removed from entity query |
+| Method name conflicts with `CommonDBTM` | Static methods prefixed with `rg` (`rgUpdate`, `rgCreate`, etc.) |
+| GLPI classes unavailable in CLI via `includes.php` | Initialization via the GLPI 10+ Symfony Kernel in `runcron.php` |
 
 ---
 
