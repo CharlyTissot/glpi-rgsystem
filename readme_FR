@@ -1,4 +1,4 @@
-# glpi-rgsupervision-sync
+# glpi-rgsupervision-sync #
 
 Plugin GLPI de synchronisation automatique des alertes **RG Supervision** vers des tickets GLPI.
 
