@@ -7,7 +7,7 @@ define('PLUGIN_RGSUPERVISION_MAX_GLPI', '11.99.99');
 function plugin_version_rgsupervision() {
     return [
         'name'         => 'RG Supervision Sync',
-        'version'      => PLUGIN_RGSUPERVISION_GLPI,
+        'version'      => PLUGIN_RGSUPERVISION_VERSION,
         'author'       => 'CharlyTissot',
         'license'      => 'GPL v2',
         'homepage'     => 'https://proximiweb.fr',
