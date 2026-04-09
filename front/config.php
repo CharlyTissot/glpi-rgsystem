@@ -1,7 +1,7 @@
 <?php
 include('../../../inc/includes.php');
 Session::checkRight('config', UPDATE);
-Html::header('RG Supervision Sync', '', 'config', 'PluginRgsupervisionConfig');
+Html::header('RG Supervision Sync', $_SERVER['PHP_SELF']);
 
 $cfg   = PluginRgsupervisionConfig::all();
 $rules = json_decode($cfg['contract_rules'] ?? '[]', true) ?: [];
