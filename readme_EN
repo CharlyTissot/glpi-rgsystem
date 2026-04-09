@@ -140,7 +140,7 @@ Administration → Profiles → [API Profile] → Assistance → Ticket categori
 ## Project structure
 
 ```
-glpi-rgsystem-main/
+rgsupervision/
 ├── setup.php                  ← Plugin declaration and GLPI hooks
 ├── hook.php                   ← Install / uninstall (database tables)
 ├── inc/

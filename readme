@@ -140,7 +140,7 @@ Administration → Profils → [Profil API] → Assistance → Catégories de ti
 ## Structure du projet
 
 ```
-glpi-rgsystem-main/
+rgsupervision/
 ├── setup.php                  ← Déclaration du plugin et hooks GLPI
 ├── hook.php                   ← Installation / désinstallation (tables BDD)
 ├── inc/
