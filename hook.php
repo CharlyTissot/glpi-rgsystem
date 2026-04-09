@@ -33,14 +33,14 @@ function plugin_rgsupervision_install() {
             'ticket_assign_group'   => '9',
             'ticket_default_entity' => '0',
             'cleanup_resolved_days' => '30',
-            'default_category_path' => 'Prestations > Hors Contrat',
+            'default_category_path' => '',
             'contract_rules'        => json_encode([
-                ['prefix' => '@BEEMO',             'keyword' => 'beemo',      'category' => 'Contrats > Services > Services Managés > Services Managés Beemo'],
-                ['prefix' => '@SMWATCHGUARD',      'keyword' => 'watchguard', 'category' => 'Contrats > Services > Services Managés > Services Managés Watchguard'],
-                ['prefix' => '@SMUTILISATEURPREM', 'keyword' => '',           'category' => 'Contrats > Services > Services Managés > Services Managés Premium'],
-                ['prefix' => '@SMUTILISATEURESS',  'keyword' => '',           'category' => 'Contrats > Services > Services Managés > Services Managés Essentiel'],
-                ['prefix' => '@DUOTECH ZEN',       'keyword' => '',           'category' => 'Contrats > Services > SAPHIR'],
-                ['prefix' => '@DUOTECH SAPHIR',    'keyword' => '',           'category' => 'Contrats > Services > SAPHIR'],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
             ]),
         ];
 
