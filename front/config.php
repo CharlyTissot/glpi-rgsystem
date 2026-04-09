@@ -76,32 +76,42 @@ if ($cronFreq === 1) {
 } elseif ($cronFreq === 60) {
     $cronExpr = '0 * * * *';
 } else {
-    $hours = intdiv($cronFreq, 60);
+    $hours = (int)floor($cronFreq / 60);
     $cronExpr = "0 */{$hours} * * *";
 }
-$cronScriptPath = dirname(__FILE__) . '/runcron.php';
-$cronLine = "{$cronExpr} /usr/local/bin/php {$cronScriptPath} >> /tmp/rgsync.log 2>&1";
+// Chemin du script runcron.php basé sur le répertoire du plugin
+$cronScriptPath = GLPI_ROOT . '/plugins/rgsupervision/front/runcron.php';
+$cronLine = $cronExpr . ' /usr/local/bin/php ' . $cronScriptPath . ' >> /tmp/rgsync.log 2>&1';
 
 // Dernière exécution depuis les logs du plugin
 $lastRun = 'Jamais';
-if ($DB->tableExists('glpi_plugin_rgsupervision_logs')) {
-    $lastLog = $DB->request(['FROM' => 'glpi_plugin_rgsupervision_logs', 'ORDER' => ['date_run DESC'], 'LIMIT' => 1])->current();
-    if ($lastLog) {
-        $lastRun = Html::convDateTime($lastLog['date_run']);
+try {
+    global $DB;
+    if ($DB && $DB->tableExists('glpi_plugin_rgsupervision_logs')) {
+        $lastLog = $DB->request([
+            'FROM'  => 'glpi_plugin_rgsupervision_logs',
+            'ORDER' => ['date_run DESC'],
+            'LIMIT' => 1,
+        ])->current();
+        if ($lastLog) {
+            $lastRun = Html::convDateTime($lastLog['date_run']);
+        }
     }
+} catch (Exception $e) {
+    $lastRun = 'Erreur lecture logs';
 }
 
 echo "<tr class='tab_bg_1'><td><b>Fréquence (minutes)</b></td><td>";
-echo "<input type='number' name='cron_frequency' value='{$cronFreq}' min='1' max='1440' style='width:80px'>";
+echo "<input type='number' name='cron_frequency' value='" . (int)$cronFreq . "' min='1' max='1440' style='width:80px'>";
 echo " <small>minutes entre chaque synchronisation</small>";
 echo "</td></tr>";
 
 echo "<tr class='tab_bg_2'><td><b>Dernière synchronisation</b></td>";
-echo "<td><span style='color:green'>{$lastRun}</span></td></tr>";
+echo "<td><span style='color:green'>" . htmlspecialchars($lastRun) . "</span></td></tr>";
 
-echo "<tr class='tab_bg_1'><td><b>Ligne crontab à utiliser</b></td><td>";
-echo "<code style='display:block;background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:4px;font-size:12px;user-select:all'>{$cronLine}</code>";
-echo "<small style='color:#888'>Ajouter via <strong>crontab -e</strong> sur le serveur. Le log est écrit dans <code>/tmp/rgsync.log</code></small>";
+echo "<tr class='tab_bg_1'><td><b>Ligne crontab à copier</b></td><td>";
+echo "<code style='display:block;background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:4px;font-size:12px'>" . htmlspecialchars($cronLine) . "</code>";
+echo "<small style='color:#888'>Ajouter via <b>crontab -e</b> sur le serveur &mdash; log dans <code>/tmp/rgsync.log</code></small>";
 echo "</td></tr>";
 
 // ── Contrats ──
