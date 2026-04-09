@@ -8,7 +8,7 @@ function plugin_version_rgsupervision() {
     return [
         'name'         => 'RG Supervision Sync',
         'version'      => PLUGIN_RGSUPERVISION_VERSION,
-        'author'       => 'DuoTech',
+        'author'       => 'CharlyTissot',
         'license'      => 'GPL v2',
         'homepage'     => 'https://proximiweb.fr',
         'requirements' => [
