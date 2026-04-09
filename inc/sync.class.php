@@ -169,7 +169,14 @@ class PluginRgsupervisionSync extends CommonDBTM {
         if ($categoryId !== null) $input['itilcategories_id'] = (int)$categoryId;
         $t  = new Ticket();
         $id = $t->add($input);
-        return ($id && $id > 0) ? (int)$id : null;
+
+        if ($id && $id > 0) {
+            // GLPI force le statut "En cours" quand un groupe est assigné.
+            // On force le retour à "Nouveau" (INCOMING) après la création.
+            $t->update(['id' => (int)$id, 'status' => Ticket::INCOMING]);
+            return (int)$id;
+        }
+        return null;
     }
 
     private function createTask($ticketId, $content) {

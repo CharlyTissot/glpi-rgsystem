@@ -102,7 +102,23 @@ if ($DB->tableExists('glpi_plugin_rgsupervision_logs')) {
     $alt = 1;
     foreach ($DB->request(['FROM'=>'glpi_plugin_rgsupervision_logs','ORDER'=>['date_run DESC'],'LIMIT'=>10]) as $row) {
         $cls = $alt++%2?'tab_bg_1':'tab_bg_2';
-        $err = $row['errors'] ? '<span style="color:red">⚠</span>' : '<span style="color:green">✓</span>';
+
+        if ($row['errors']) {
+            // Affichage de chaque ligne d'erreur dans un bloc dépliable
+            $errLines  = array_filter(explode("\n", $row['errors']));
+            $errCount  = count($errLines);
+            $runId     = 'rg-err-' . $row['id'];
+            $errHtml   = '<span style="color:red;cursor:pointer;font-weight:bold" onclick="rgToggle('' . $runId . '')">⚠ ' . $errCount . ' erreur' . ($errCount > 1 ? 's' : '') . ' ▾</span>';
+            $errHtml  .= '<div id="' . $runId . '" style="display:none;margin-top:6px;padding:8px;background:#fff3f3;border:1px solid #f5c6cb;border-radius:4px;font-size:12px;white-space:pre-wrap;max-width:600px">';
+            foreach ($errLines as $line) {
+                $errHtml .= '<div style="padding:2px 0;border-bottom:1px solid #f5c6cb">⚠ ' . htmlspecialchars(trim($line)) . '</div>';
+            }
+            $errHtml .= '</div>';
+            $err = $errHtml;
+        } else {
+            $err = '<span style="color:green">✓</span>';
+        }
+
         echo "<tr class='$cls'><td>".Html::convDateTime($row['date_run'])."</td>";
         echo "<td>".round((float)$row['duration'],1)."s</td>";
         echo "<td>{$row['collectes']}</td><td><b>{$row['nouveaux']}</b></td>";
@@ -113,6 +129,7 @@ if ($DB->tableExists('glpi_plugin_rgsupervision_logs')) {
 
 echo '</div>';
 echo '<script>
+function rgToggle(id){var el=document.getElementById(id);el.style.display=el.style.display==="none"?"block":"none";}
 function ra(){var b=document.getElementById("rb"),n=b.rows.length+1,r=document.createElement("tr");
 r.innerHTML="<td style=\'padding:3px\'>"+n+"</td><td><input type=\'text\' class=\'rp\' style=\'width:100%\'></td><td><input type=\'text\' class=\'rk\' style=\'width:100%\'></td><td><input type=\'text\' class=\'rc\' style=\'width:100%\'></td><td><button type=\'button\' onclick=\'this.closest(\"tr\").remove();rn()\'>✕</button></td>";
 b.appendChild(r);}
