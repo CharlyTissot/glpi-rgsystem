@@ -16,6 +16,36 @@ if (isset($_POST['save'])) {
         $rules = json_decode(stripslashes($_POST['contract_rules_json']), true);
         if (is_array($rules)) PluginRgsupervisionConfig::set('contract_rules', json_encode($rules));
     }
+
+    // Créer ou mettre à jour la tâche cron avec la fréquence configurée
+    if (isset($_POST['cron_frequency'])) {
+        $freqMinutes = max(1, (int)$_POST['cron_frequency']);
+        $freqSeconds = $freqMinutes * 60;
+        PluginRgsupervisionConfig::set('cron_frequency', (string)$freqMinutes);
+
+        $cron = new CronTask();
+        $cron->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
+
+        if ($cron->getID()) {
+            // Mettre à jour la fréquence si la tâche existe déjà
+            $cron->update([
+                'id'        => $cron->getID(),
+                'frequency' => $freqSeconds,
+            ]);
+        } else {
+            // Créer la tâche si elle n'existe pas encore
+            CronTask::register(
+                'PluginRgsupervisionSync',
+                'cronSyncRGAlerts',
+                $freqSeconds,
+                [
+                    'comment' => 'Synchronisation RG Supervision vers GLPI',
+                    'mode'    => CronTask::MODE_EXTERNAL,
+                ]
+            );
+        }
+    }
+
     Html::redirect(Plugin::getWebDir('rgsupervision').'/front/config.php?msg=saved');
 }
 

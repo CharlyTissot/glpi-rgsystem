@@ -64,6 +64,25 @@ foreach ($rows2 as $r) {
     echo "<tr class='$cls'><td><b>{$r[0]}</b></td><td><input type='number' name='{$r[1]}' value='$v' style='width:80px'></td></tr>";
 }
 
+// ── Synchronisation ──
+echo '<tr class="headerRow"><th colspan="2">⏱️ Synchronisation</th></tr>';
+$cronFreq = (int)($cfg['cron_frequency'] ?? 10);
+$cronStatus = '';
+$cronTask = new CronTask();
+$cronTask->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
+if ($cronTask->getID()) {
+    $freq = (int)$cronTask->fields['frequency'];
+    $last = $cronTask->fields['lastrun'] ? Html::convDateTime($cronTask->fields['lastrun']) : 'Jamais';
+    $cronStatus = "<span style='color:green'>✓ Tâche active — fréquence : {$freq}s — dernière exécution : {$last}</span>";
+} else {
+    $cronStatus = "<span style='color:orange'>⚠ Tâche cron non enregistrée — enregistrer la configuration pour la créer</span>";
+}
+echo "<tr class='tab_bg_1'><td><b>Fréquence (minutes)</b></td><td>";
+echo "<input type='number' name='cron_frequency' value='{$cronFreq}' min='1' max='1440' style='width:80px'>";
+echo " <small>minutes entre chaque synchronisation automatique</small>";
+echo "</td></tr>";
+echo "<tr class='tab_bg_2'><td><b>État de la tâche cron</b></td><td>{$cronStatus}</td></tr>";
+
 // ── Contrats ──
 echo '<tr class="headerRow"><th colspan="2">📋 Contrats → Catégories</th></tr>';
 $dcpath = htmlspecialchars($cfg['default_category_path'] ?? 'Prestations > Hors Contrat');

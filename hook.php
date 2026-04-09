@@ -34,6 +34,7 @@ function plugin_rgsupervision_install() {
             'ticket_default_entity' => '0',
             'cleanup_resolved_days' => '30',
             'default_category_path' => '',
+            'cron_frequency'        => '10',
             'contract_rules'        => json_encode([]),
         ];
 
