@@ -109,9 +109,26 @@ echo "</td></tr>";
 echo "<tr class='tab_bg_2'><td><b>Dernière synchronisation</b></td>";
 echo "<td><span style='color:green'>" . htmlspecialchars($lastRun) . "</span></td></tr>";
 
-echo "<tr class='tab_bg_1'><td><b>Ligne crontab à copier</b></td><td>";
+// Vérifier si la ligne est déjà dans le crontab
+$currentCrontab  = shell_exec('crontab -l 2>/dev/null') ?? '';
+$cronLinePresent = strpos($currentCrontab, 'rgsupervision/front/runcron.php') !== false;
+$cronLineStatus  = PluginRgsupervisionConfig::get('cron_line_status', '');
+
+echo "<tr class='tab_bg_1'><td><b>Ligne crontab</b></td><td>";
 echo "<code style='display:block;background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:4px;font-size:12px'>" . htmlspecialchars($cronLine) . "</code>";
-echo "<small style='color:#888'>Ajouter via <b>crontab -e</b> sur le serveur &mdash; log dans <code>/tmp/rgsync.log</code></small>";
+
+if ($cronLinePresent) {
+    echo "<div style='margin-top:6px'><span style='color:green'>✓ Ligne active dans le crontab du serveur</span></div>";
+} elseif ($cronLineStatus === 'ok') {
+    echo "<div style='margin-top:6px'><span style='color:orange'>⚠ Ligne enregistrée mais non détectée — vérifier manuellement avec <b>crontab -l</b></span></div>";
+} elseif (strpos($cronLineStatus, 'error:') === 0) {
+    $errMsg = htmlspecialchars(substr($cronLineStatus, 6));
+    echo "<div style='margin-top:6px'><span style='color:red'>✗ Erreur mise à jour crontab : {$errMsg}</span><br>";
+    echo "<small>Ajouter manuellement via <b>crontab -e</b> sur le serveur</small></div>";
+} else {
+    echo "<div style='margin-top:6px'><span style='color:orange'>⚠ Non configuré — sera mis à jour automatiquement au prochain enregistrement</span></div>";
+}
+echo "<small style='color:#888;display:block;margin-top:4px'>Log de la synchro : <code>/tmp/rgsync.log</code></small>";
 echo "</td></tr>";
 
 // ── Contrats ──

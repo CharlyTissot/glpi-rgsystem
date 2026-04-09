@@ -17,10 +17,59 @@ if (isset($_POST['save'])) {
         if (is_array($rules)) PluginRgsupervisionConfig::set('contract_rules', json_encode($rules));
     }
 
-    // Sauvegarder la fréquence (la ligne crontab est générée et affichée dans l'interface)
+    // Sauvegarder la fréquence et mettre à jour le crontab automatiquement
     if (isset($_POST['cron_frequency'])) {
         $freqMinutes = max(1, (int)$_POST['cron_frequency']);
         PluginRgsupervisionConfig::set('cron_frequency', (string)$freqMinutes);
+
+        // Construire l'expression cron selon la fréquence
+        if ($freqMinutes === 1) {
+            $cronExpr = '* * * * *';
+        } elseif ($freqMinutes < 60) {
+            $cronExpr = "*/{$freqMinutes} * * * *";
+        } elseif ($freqMinutes === 60) {
+            $cronExpr = '0 * * * *';
+        } else {
+            $hours = (int)floor($freqMinutes / 60);
+            $cronExpr = "0 */{$hours} * * *";
+        }
+
+        $scriptPath  = GLPI_ROOT . '/plugins/rgsupervision/front/runcron.php';
+        $newCronLine = $cronExpr . ' /usr/local/bin/php ' . $scriptPath . ' >> /tmp/rgsync.log 2>&1';
+        $marker      = 'rgsupervision/front/runcron.php'; // identifiant unique de notre ligne
+
+        // Lire le crontab actuel
+        $currentCrontab = shell_exec('crontab -l 2>/dev/null') ?? '';
+
+        // Supprimer l'ancienne ligne du plugin si elle existe
+        $lines = explode("
+", $currentCrontab);
+        $lines = array_filter($lines, function($line) use ($marker) {
+            return strpos($line, $marker) === false;
+        });
+
+        // Ajouter la nouvelle ligne
+        $lines[] = $newCronLine;
+
+        // Réécrire le crontab
+        $newCrontab = implode("
+", $lines);
+        // S'assurer qu'il y a un saut de ligne final
+        $newCrontab = rtrim($newCrontab) . "
+";
+
+        // Écrire via un fichier temporaire
+        $tmpFile = tempnam(sys_get_temp_dir(), 'rg_cron_');
+        file_put_contents($tmpFile, $newCrontab);
+        $result = shell_exec('crontab ' . escapeshellarg($tmpFile) . ' 2>&1');
+        unlink($tmpFile);
+
+        if ($result) {
+            // Erreur lors de l'écriture du crontab — on stocke juste la ligne pour affichage
+            PluginRgsupervisionConfig::set('cron_line_status', 'error: ' . $result);
+        } else {
+            PluginRgsupervisionConfig::set('cron_line_status', 'ok');
+        }
     }
 
     Html::redirect(Plugin::getWebDir('rgsupervision').'/front/config.php?msg=saved');
