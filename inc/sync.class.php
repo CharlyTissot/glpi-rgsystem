@@ -172,8 +172,9 @@ class PluginRgsupervisionSync extends CommonDBTM {
 
         if ($id && $id > 0) {
             // GLPI force le statut "En cours" quand un groupe est assigné.
-            // On force le retour à "Nouveau" (INCOMING) après la création.
-            $t->update(['id' => (int)$id, 'status' => Ticket::INCOMING]);
+            // On contourne les règles métier en écrivant directement en BDD.
+            global $DB;
+            $DB->update('glpi_tickets', ['status' => Ticket::INCOMING], ['id' => (int)$id]);
             return (int)$id;
         }
         return null;
