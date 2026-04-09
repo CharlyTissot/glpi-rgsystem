@@ -1,0 +1,168 @@
+# glpi-rgsupervision-sync
+
+GLPI plugin for automatic synchronization of **RG Supervision** alerts into GLPI tickets.
+
+![GLPI](https://img.shields.io/badge/GLPI-10.x%20%7C%2011.x-blue)
+![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple)
+![License](https://img.shields.io/badge/License-GPL%20v2-green)
+![Version](https://img.shields.io/badge/Version-1.0.0-orange)
+
+---
+
+## How it works
+
+The plugin queries the RG Supervision API every 10 minutes via the GLPI cron and:
+
+- Creates a GLPI ticket for each new open alert
+- Automatically assigns the client entity via the **GLPI TAG** matching the RG node
+- Determines the ticket category based on the entity's **active contracts**
+- Adds a private follow-up task if the `raiseCount` counter increases
+- Automatically resolves the ticket when the alert is closed on the RG side
+- Detects manual reopenings and closures performed by technicians in GLPI
+
+> **One-way synchronization** — RG Supervision → GLPI only.
+
+---
+
+## Requirements
+
+- GLPI 10.x or 11.x
+- PHP 7.4+ with the `curl` extension
+- Network access to `api.rg-supervision.com` (HTTPS 443)
+
+---
+
+## Installation
+
+```sh
+# Clone or download the repository
+git clone https://github.com/your-repo/glpi-rgsupervision-sync.git rgsupervision
+
+# Copy to the GLPI plugins folder
+cp -r rgsupervision /var/www/glpi/plugins/
+
+# Set permissions
+chown -R www-data:www-data /var/www/glpi/plugins/rgsupervision/
+```
+
+Then in GLPI:
+
+```
+Setup → Plugins → RG Supervision Sync → Install → Enable
+```
+
+---
+
+## Configuration
+
+Access the configuration page:
+
+```
+Setup → Plugins → RG Supervision Sync → ⚙️ Configure
+```
+
+### 1. RG Supervision API
+
+| Parameter | Description |
+|-----------|-------------|
+| API Token | RG Supervision authentication token (`at_xxxx`) |
+| API URL | `https://api.rg-supervision.com` |
+| Root Node ID | ID of the root node in your RG Supervision tree |
+| HTTP Timeout | Maximum request delay in seconds (default: `30`) |
+| Agent types | `s` = Server, `w` = Workstation, `e` = Equipment |
+| Severities | Alert levels to synchronize |
+
+### 2. GLPI Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| Request source ID | GLPI ID of the "Supervision" request source |
+| Assigned group ID | ID of the group assigned to new tickets |
+| Default entity ID | Fallback entity if no TAG matches (default: `0`) |
+| Resolved cleanup (days) | Purges resolved entries after N days (default: `30`) |
+
+### 3. RG Node ↔ GLPI Entity Matching
+
+> ⚠️ **Key point** — The RG node name must match the **TAG** field of the GLPI entity.
+
+For each client, set the entity TAG in GLPI:
+
+```
+Administration → Entities → [Client entity] → TAG = RG_NODE_NAME
+```
+
+**Example:**
+
+| RG Supervision node | GLPI entity TAG |
+|---------------------|-----------------|
+| `CLIENT1` | `CLIENT1` |
+| `CLIENT2` | `CLIENT2` |
+| `CLIENT3` | `CLIENT3` |
+
+Matching is performed in this order:
+1. Exact TAG *(highest priority)*
+2. Exact entity name
+3. Partial entity name
+4. Default entity
+
+If no TAG matches, the ticket is created in the default entity. The exact RG node name is visible in the GLPI logs after the first run.
+
+### 4. Contracts → Categories
+
+The plugin automatically assigns a GLPI category based on the entity's active contracts. Rules are configurable from the interface:
+
+| Contract prefix | Title keyword | Assigned category |
+|---|---|---|
+| `@BACKUP` | `beemo` | Contracts > Services > Managed Services > Managed Services Beemo |
+| `@FIREWALL` | `watchguard` | Contracts > Services > Managed Services > Managed Services Watchguard |
+| `@SMUTILISATEURPREM` | *(empty)* | Contracts > Services > Managed Services > Managed Services Premium |
+| `@SMUTILISATEURESS` | *(empty)* | Contracts > Services > Managed Services > Managed Services Essentials |
+| `@CONTRAT ZEN` | *(empty)* | Contracts > Services > SAPHIR |
+| `@CONTRAT SAPHIR` | *(empty)* | Contracts > Services > SAPHIR |
+
+If no active contract matches: default category (`Services > Out of Contract`).
+
+**A contract is considered active if:**
+- Status = `Active Contract`
+- Directly assigned to the entity *(recursive parent contracts are excluded)*
+- Within the `begin_date` / `end_date` range
+
+---
+
+## Required rights on the GLPI API profile
+
+```
+Administration → Profiles → [API Profile] → Assistance → Ticket categories = Read
+```
+
+---
+
+## Project structure
+
+```
+glpi-rgsystem-main/
+├── setup.php                  ← Plugin declaration and GLPI hooks
+├── hook.php                   ← Install / uninstall (database tables)
+├── inc/
+│   ├── config.class.php       ← Read/write configuration from database
+│   ├── rgapiclient.class.php  ← cURL client for the RG Supervision API
+│   ├── sync.class.php         ← Synchronization logic + cron entry point
+│   └── syncstate.class.php    ← Sync state management in database
+└── front/
+    ├── config.php             ← Configuration page
+    └── config.form.php        ← Form processing
+```
+
+### Database tables created on installation
+
+| Table | Description |
+|-------|-------------|
+| `glpi_plugin_rgsupervision_configs` | Key/value configuration |
+| `glpi_plugin_rgsupervision_syncs` | Synchronization state (replaces the JSON file) |
+| `glpi_plugin_rgsupervision_logs` | Run history |
+
+---
+
+## License
+
+GPL v2 — see [LICENSE](LICENSE)
