@@ -24,36 +24,28 @@ if (isset($_POST['save'])) {
         $freqSeconds = $freqMinutes * 60;
         PluginRgsupervisionConfig::set('cron_frequency', (string)$freqMinutes);
 
-        $cron = new CronTask();
-        $cron->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
+        // Supprimer l'ancienne entrée si elle existe (quelle que soit sa valeur)
+        // puis recréer proprement — évite les conflits de mise à jour GLPI
+        $DB->delete('glpi_crontasks', [
+            'itemtype' => 'PluginRgsupervisionSync',
+            'name'     => 'cronSyncRGAlerts',
+        ]);
 
-        if ($cron->getID()) {
-            // Mettre à jour directement en BDD (update() de CronTask peut être bloqué)
-            $DB->update('glpi_crontasks', [
-                'frequency' => $freqSeconds,
-                'state'     => 1,   // 1 = actif
-                'mode'      => 2,   // 2 = externe
-            ], [
-                'id' => $cron->getID(),
-            ]);
-        } else {
-            // Créer la tâche si elle n'existe pas encore
-            $DB->insert('glpi_crontasks', [
-                'itemtype'      => 'PluginRgsupervisionSync',
-                'name'          => 'cronSyncRGAlerts',
-                'frequency'     => $freqSeconds,
-                'param'         => null,
-                'state'         => 1,
-                'mode'          => 2,
-                'allowmode'     => 3,
-                'hourmin'       => 0,
-                'hourmax'       => 24,
-                'logs_lifetime' => 30,
-                'lastrun'       => null,
-                'lastcode'      => null,
-                'comment'       => 'Synchronisation RG Supervision vers GLPI',
-            ]);
-        }
+        $DB->insert('glpi_crontasks', [
+            'itemtype'      => 'PluginRgsupervisionSync',
+            'name'          => 'cronSyncRGAlerts',
+            'frequency'     => $freqSeconds,
+            'param'         => null,
+            'state'         => 1,
+            'mode'          => 2,
+            'allowmode'     => 3,
+            'hourmin'       => 0,
+            'hourmax'       => 24,
+            'logs_lifetime' => 30,
+            'lastrun'       => null,
+            'lastcode'      => null,
+            'comment'       => 'Synchronisation RG Supervision vers GLPI',
+        ]);
     }
 
     Html::redirect(Plugin::getWebDir('rgsupervision').'/front/config.php?msg=saved');

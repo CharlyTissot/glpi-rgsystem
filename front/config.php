@@ -69,11 +69,13 @@ echo '<tr class="headerRow"><th colspan="2">⏱️ Synchronisation</th></tr>';
 $cronFreq = (int)($cfg['cron_frequency'] ?? 10);
 $cronStatus = '';
 $cronTask = new CronTask();
-$cronTask->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
-if ($cronTask->getID()) {
-    $freq = (int)$cronTask->fields['frequency'];
-    $last = $cronTask->fields['lastrun'] ? Html::convDateTime($cronTask->fields['lastrun']) : 'Jamais';
-    $cronStatus = "<span style='color:green'>✓ Tâche active — fréquence : {$freq}s — dernière exécution : {$last}</span>";
+$cronFound = $cronTask->getFromDBbyName('PluginRgsupervisionSync', 'cronSyncRGAlerts');
+if ($cronFound && $cronTask->getID()) {
+    $freq = (int)($cronTask->fields['frequency'] ?? 0);
+    $freqMin = $freq > 0 ? round($freq / 60) : 0;
+    $lastrun = $cronTask->fields['lastrun'] ?? null;
+    $last    = $lastrun ? Html::convDateTime($lastrun) : 'Jamais';
+    $cronStatus = "<span style='color:green'>✓ Tâche active — fréquence : {$freqMin} min — dernière exécution : {$last}</span>";
 } else {
     $cronStatus = "<span style='color:orange'>⚠ Tâche cron non enregistrée — enregistrer la configuration pour la créer</span>";
 }
