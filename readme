@@ -1,1 +1,168 @@
+# glpi-rgsupervision-sync
 
+Plugin GLPI de synchronisation automatique des alertes **RG Supervision** vers des tickets GLPI.
+
+![GLPI](https://img.shields.io/badge/GLPI-10.x%20%7C%2011.x-blue)
+![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple)
+![Licence](https://img.shields.io/badge/Licence-GPL%20v2-green)
+![Version](https://img.shields.io/badge/Version-1.0.0-orange)
+
+---
+
+## Fonctionnement
+
+Le plugin interroge l'API RG Supervision toutes les 10 minutes via le cron GLPI et :
+
+- Crée un ticket GLPI pour chaque nouvelle alerte ouverte
+- Assigne automatiquement l'entité cliente via le **TAG GLPI** correspondant au nœud RG
+- Détermine la catégorie du ticket selon les **contrats actifs** de l'entité
+- Ajoute une tâche de relance (privée) si le compteur `raiseCount` augmente
+- Résout automatiquement le ticket si l'alerte se ferme côté RG
+- Détecte les réouvertures et clôtures manuelles effectuées par les techniciens
+
+> Synchronisation **unidirectionnelle** — RG Supervision → GLPI uniquement.
+
+---
+
+## Prérequis
+
+- GLPI 10.x ou 11.x
+- PHP 7.4+ avec l'extension `curl`
+- Accès réseau vers `api.rg-supervision.com` (HTTPS 443)
+
+---
+
+## Installation
+
+```sh
+# Cloner ou télécharger le dépôt
+git clone https://github.com/votre-repo/glpi-rgsupervision-sync.git rgsupervision
+
+# Copier dans le dossier plugins de GLPI
+cp -r rgsupervision /var/www/glpi/plugins/
+
+# Droits
+chown -R www-data:www-data /var/www/glpi/plugins/rgsupervision/
+```
+
+Puis dans GLPI :
+
+```
+Configuration → Plugins → RG Supervision Sync → Installer → Activer
+```
+
+---
+
+## Configuration
+
+Accéder à la page de configuration :
+
+```
+Configuration → Plugins → RG Supervision Sync → ⚙️ Configurer
+```
+
+### 1. API RG Supervision
+
+| Paramètre | Description |
+|-----------|-------------|
+| Token API | Token d'authentification RG Supervision (`at_xxxx`) |
+| URL API | `https://api.rg-supervision.com` |
+| ID Nœud racine | ID du nœud racine de votre arborescence RG |
+| Timeout HTTP | Délai max des requêtes en secondes (défaut : `30`) |
+| Types agents | `s` = Serveur, `w` = Workstation, `e` = Équipement |
+| Criticités | Niveaux d'alerte à synchroniser |
+
+### 2. Paramètres GLPI
+
+| Paramètre | Description |
+|-----------|-------------|
+| ID Source demande | ID GLPI de la source "Supervision" |
+| ID Groupe assigné | ID du groupe assigné aux nouveaux tickets |
+| ID Entité par défaut | Entité de repli si aucun TAG ne correspond (défaut : `0`) |
+| Nettoyage résolus (j) | Purge des entrées résolues après N jours (défaut : `30`) |
+
+### 3. Correspondance Nœud RG ↔ Entité GLPI
+
+> ⚠️ **Point clé** — Le nom du nœud RG doit correspondre au champ **TAG** de l'entité GLPI.
+
+Pour chaque client, renseigner le TAG de l'entité dans GLPI :
+
+```
+Administration → Entités → [Entité client] → TAG = NOM_DU_NOEUD_RG
+```
+
+**Exemple :**
+
+| Nœud RG Supervision | TAG entité GLPI |
+|---------------------|-----------------|
+| `MAINGRET000` | `MAINGRET000` |
+| `TRANSAYRAULT` | `TRANSAYRAULT` |
+| `RCM` | `RCM` |
+
+Le matching se fait dans cet ordre :
+1. TAG exact *(prioritaire)*
+2. Nom exact de l'entité
+3. Nom partiel
+4. Entité par défaut
+
+Si aucun TAG ne correspond, le ticket est créé dans l'entité par défaut. Le nom exact du nœud RG est visible dans les logs GLPI après un premier lancement.
+
+### 4. Contrats → Catégories
+
+Le plugin assigne automatiquement la catégorie GLPI selon les contrats actifs de l'entité. Les règles sont configurables dans l'interface :
+
+| Préfixe contrat | Mot-clé titre | Catégorie assignée |
+|---|---|---|
+| `@BEEMO` | `beemo` | Contrats > Services > Services Managés > Services Managés Beemo |
+| `@SMWATCHGUARD` | `watchguard` | Contrats > Services > Services Managés > Services Managés Watchguard |
+| `@SMUTILISATEURPREM` | *(vide)* | Contrats > Services > Services Managés > Services Managés Premium |
+| `@SMUTILISATEURESS` | *(vide)* | Contrats > Services > Services Managés > Services Managés Essentiel |
+| `@DUOTECH ZEN` | *(vide)* | Contrats > Services > SAPHIR |
+| `@DUOTECH SAPHIR` | *(vide)* | Contrats > Services > SAPHIR |
+
+Si aucun contrat actif ne correspond : catégorie par défaut (`Prestations > Hors Contrat`).
+
+**Un contrat est considéré actif si :**
+- Statut = `Contrat Actif`
+- Assigné directement à l'entité *(les contrats parents récursifs sont exclus)*
+- Dans la plage `begin_date` / `end_date`
+
+---
+
+## Droits requis sur le profil API GLPI
+
+```
+Administration → Profils → [Profil API] → Assistance → Catégories de ticket = Lecture
+```
+
+---
+
+## Structure du projet
+
+```
+rgsupervision/
+├── setup.php                  ← Déclaration du plugin et hooks GLPI
+├── hook.php                   ← Installation / désinstallation (tables BDD)
+├── inc/
+│   ├── config.class.php       ← Lecture/écriture configuration en BDD
+│   ├── rgapiclient.class.php  ← Client cURL vers l'API RG Supervision
+│   ├── sync.class.php         ← Logique de synchronisation + point d'entrée cron
+│   └── syncstate.class.php    ← Gestion de l'état de synchro en BDD
+└── front/
+    ├── config.php             ← Page de configuration
+    └── config.form.php        ← Traitement du formulaire
+```
+
+### Tables BDD créées à l'installation
+
+| Table | Description |
+|-------|-------------|
+| `glpi_plugin_rgsupervision_configs` | Configuration clé/valeur |
+| `glpi_plugin_rgsupervision_syncs` | État de synchronisation (remplace le JSON) |
+| `glpi_plugin_rgsupervision_logs` | Historique des runs |
+
+---
+
+## Licence
+
+GPL v2 — voir [LICENSE](LICENSE)
