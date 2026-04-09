@@ -95,9 +95,9 @@ Administration → Entités → [Entité client] → TAG = NOM_DU_NOEUD_RG
 
 | Nœud RG Supervision | TAG entité GLPI |
 |---------------------|-----------------|
-| `MAINGRET000` | `MAINGRET000` |
-| `TRANSAYRAULT` | `TRANSAYRAULT` |
-| `RCM` | `RCM` |
+| `CLIENT1` | `CLIENT1` |
+| `CLIENT2` | `CLIENT2` |
+| `CLIENT3` | `CLIENT3` |
 
 Le matching se fait dans cet ordre :
 1. TAG exact *(prioritaire)*
@@ -113,12 +113,12 @@ Le plugin assigne automatiquement la catégorie GLPI selon les contrats actifs d
 
 | Préfixe contrat | Mot-clé titre | Catégorie assignée |
 |---|---|---|
-| `@BEEMO` | `beemo` | Contrats > Services > Services Managés > Services Managés Beemo |
-| `@SMWATCHGUARD` | `watchguard` | Contrats > Services > Services Managés > Services Managés Watchguard |
+| `@BACKUP` | `beemo` | Contrats > Services > Services Managés > Services Managés Beemo |
+| `@FIREWALL` | `watchguard` | Contrats > Services > Services Managés > Services Managés Watchguard |
 | `@SMUTILISATEURPREM` | *(vide)* | Contrats > Services > Services Managés > Services Managés Premium |
 | `@SMUTILISATEURESS` | *(vide)* | Contrats > Services > Services Managés > Services Managés Essentiel |
-| `@DUOTECH ZEN` | *(vide)* | Contrats > Services > SAPHIR |
-| `@DUOTECH SAPHIR` | *(vide)* | Contrats > Services > SAPHIR |
+| `@CONTRAT ZEN` | *(vide)* | Contrats > Services > SAPHIR |
+| `@CONTRAT SAPHIR` | *(vide)* | Contrats > Services > SAPHIR |
 
 Si aucun contrat actif ne correspond : catégorie par défaut (`Prestations > Hors Contrat`).
 
@@ -140,7 +140,7 @@ Administration → Profils → [Profil API] → Assistance → Catégories de ti
 ## Structure du projet
 
 ```
-rgsupervision/
+glpi-rgsystem-main/
 ├── setup.php                  ← Déclaration du plugin et hooks GLPI
 ├── hook.php                   ← Installation / désinstallation (tables BDD)
 ├── inc/
